@@ -11,7 +11,7 @@ def generate_fake_data(use_defaults):
 
         temp = random.randint(30, 95)
         cpu = random.randint(10, 100)
-        status = random.choice([2, 3, 4]) 
+        status = random.choice([3, 4, 5]) 
 
         # Define Channels
         temp_channel = {
@@ -30,20 +30,23 @@ def generate_fake_data(use_defaults):
         status_channel = {
             "channel": "Health Status",
             "value": status,
-            "ValueLookup": "prtg.standardlookups.sensorstatus"
+            "ValueLookup": "prtg.standardlookups.dell.dellstatus"
         }
 
         # If "use_defaults" flag true inject limits
+        # Example for lower bounds:
+        # "LimitMinWarning": 10,  
+        # "LimitMinError": 5
         if use_defaults:
             temp_channel.update({
                 "LimitMode": 1,
-                "LimitMaxWarning": 75,
-                "LimitMaxError": 85
+                "LimitMaxWarning": 55,
+                "LimitMaxError": 70
             })
             cpu_channel.update({
                 "LimitMode": 1,
-                "LimitMaxWarning": 85,
-                "LimitMaxError": 95
+                "LimitMaxWarning": 60,
+                "LimitMaxError": 70
             })
 
         # Create output JSON for PRTG
@@ -55,7 +58,7 @@ def generate_fake_data(use_defaults):
                     status_channel
 
                 ],
-                "text": f"OK - Temp: {temp}C, CPU: {cpu}%"
+                "text": f"Small text that will displlay on title bar.  Can eg. send values --> TEMP {temp}C, CPU: {cpu}% but usually left empty. Could also be uused for custom Messages."
             }
         }
         

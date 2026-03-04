@@ -18,7 +18,7 @@ foreach ($file in $pyFiles) {
 
     # You potentially must first install pyinstaller: "pip install pyinstaller"
     # Also command might fail cause Windows garbage PATH handling - maybe add "py -m"
-    pyinstaller --onefile --noconsole --clean `
+    pyinstaller --onefile --clean `
                 --distpath "$targetDist" `
                 --workpath ".\build\temp" `
                 --specpath ".\build\specs" `
