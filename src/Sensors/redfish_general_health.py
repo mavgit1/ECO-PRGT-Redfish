@@ -7,37 +7,53 @@ import time
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def run_sensor(ip, user, pwd):
-    #  Start timer
+    # Start timer and initialize fallback variables
     start_time = time.time()
+    health = "Unknown"
+    token = None
+    session_url = None
+    warning = ""
 
-    base = f"https://{ip}/redfish/v1"
+    try:
+        with requests.Session() as s:
+            s.verify = False
+            s.timeout = 10
+            base = f"https://{ip}/redfish/v1"
+
+        
+            # Login and get X-Auth-Token
+            auth = s.post(f"{base}/SessionService/Sessions", json={"UserName": user, "Password": pwd}, verify=False)
+            auth.raise_for_status() # Catches 401 Unauthorized or other HTTP errors
+            token = auth.headers.get("X-Auth-Token")
+            s.headers.update({"X-Auth-Token": token})
+            session_url = f"https://{ip}{auth.json()['@odata.id']}"
+
+            # Find system name / path
+            sys_col = s.get(f"{base}/Systems").json()
+            sys_url = f"https://{ip}{sys_col['Members'][0]['@odata.id']}"
+        
+            # Get health status
+            data = s.get(sys_url).json()
+            health = data.get("Status", {}).get("Health", "Unknown")
     
-    # Login and get X-Auth-Token
-    auth = requests.post(f"{base}/SessionService/Sessions", 
-                            json={"UserName": user, "Password": pwd}, 
-                            verify=False)
-    auth.raise_for_status() # Catches 401 Unauthorized or other HTTP errors
-    token = auth.headers.get("X-Auth-Token")
-    headers = {"X-Auth-Token": token}
+    finally:
+        # If status not "ok" then error -> no "warning" state. Dell Standardlookups used: prtg.standardlookups.dell.dellstatus
+        # 3 = OK (Green)
+        # 4 = NonCritical (Yellow)
+        # 5 = Critical (Red)
+        status = 3 if health.lower() == "ok" else 5
 
-    # Find system name / path
-    sys_col = requests.get(f"{base}/Systems", headers=headers, verify=False).json()
-    sys_url = f"https://{ip}{sys_col['Members'][0]['@odata.id']}"
-    
-    # Get health status
-    data = requests.get(sys_url, headers=headers, verify=False).json()
-    health = data.get("Status", {}).get("Health", "Unknown")
+        if token and session_url:
+            try:
+                requests.delete(session_url, headers={"X-Auth-Token": token}, verify=False, timeout=5)
+            except Exception as e:
+                status = 4
+                warning = str(e)
+                
+        warning_msg = f" | Warning: {warning}" if warning else ""
 
-    # If status not "ok" then error -> no "warning" state. Dell Standardlookups used: prtg.standardlookups.dell.dellstatus
-    # 3 = OK (Green)
-    # 4 = NonCritical (Yellow)
-    # 5 = Critical (Red)
-    status = 3 if health.lower() == "ok" else 5
 
-    # Get session URL for logout and close the session
-    session_path = auth.json().get("@odata.id")
-    logout_url = f"https://{ip}{session_path}"
-    requests.delete(logout_url, headers=headers, verify=False)
+
 
     # Stop timer - all redfish requests are done
     end_time = time.time()
@@ -63,10 +79,10 @@ def run_sensor(ip, user, pwd):
                 timer_channel
             ],
             # This prints the status message in "banner" below sensor name
-            "text": f"Status is {health}"
+            "text": f"Status is {health}{warning_msg}"
         }
     }
-    print(json.dumps(output))
+    return output
 
 # Override parser logic so that messages are not printet in general allowing error messages to be raised to PRTG
 # PRTG always expects a JSON and else would fail
@@ -85,7 +101,9 @@ if __name__ == "__main__":
 
         args = parser.parse_args()
 
-        run_sensor(args.ip, args.user, args.pwd)
+        json_output = run_sensor(args.ip, args.user, args.pwd)
+        print(json.dumps(json_output))
+
 
     except ValueError as e:
         print(json.dumps({
