@@ -27,11 +27,13 @@ def run_sensor(ip, user, pwd):
             token = auth.headers.get("X-Auth-Token")
             s.headers.update({"X-Auth-Token": token})
             session_url = f"https://{ip}{auth.json()['@odata.id']}"
+            time.sleep(1)
 
             # Find system name / path
             sys_col = s.get(f"{base}/Systems").json()
             sys_url = f"https://{ip}{sys_col['Members'][0]['@odata.id']}"
-        
+            time.sleep(1)
+
             # Get health status
             data = s.get(sys_url).json()
             health = data.get("Status", {}).get("Health", "Unknown")
@@ -44,6 +46,7 @@ def run_sensor(ip, user, pwd):
         status = 3 if health.lower() == "ok" else 5
 
         if token and session_url:
+            time.sleep(1)
             try:
                 requests.delete(session_url, headers={"X-Auth-Token": token}, verify=False, timeout=5)
             except Exception as e:
@@ -51,8 +54,6 @@ def run_sensor(ip, user, pwd):
                 warning = str(e)
                 
         warning_msg = f" | Warning: {warning}" if warning else ""
-
-
 
 
     # Stop timer - all redfish requests are done
